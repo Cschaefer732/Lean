@@ -1,0 +1,22 @@
+2025-10-07T01:55:51.0736437Z TRACE:: Engine.Main(): LEAN ALGORITHMIC TRADING ENGINE v2.5.0.0 Mode: DEBUG (64bit) Host: 7d159e986d58
+2025-10-07T01:55:51.0948431Z TRACE:: Engine.Main(): Started 1:55 AM
+2025-10-07T01:55:51.0982182Z TRACE:: Config.Get(): Configuration key not found. Key: algorithm-type-name - Using default value: 
+2025-10-07T01:55:51.0984367Z TRACE:: Config.Get(): Configuration key not found. Key: algorithm-location - Using default value: QuantConnect.Algorithm.CSharp.dll
+2025-10-07T01:55:51.1059774Z TRACE:: Config.Get(): Configuration key not found. Key: lean-manager-type - Using default value: LocalLeanManager
+2025-10-07T01:55:51.1232603Z TRACE:: Config.Get(): Configuration key not found. Key: setup-handler - Using default value: ConsoleSetupHandler
+2025-10-07T01:55:51.1233310Z TRACE:: Config.Get(): Configuration key not found. Key: transaction-handler - Using default value: BacktestingTransactionHandler
+2025-10-07T01:55:51.1233885Z TRACE:: Config.Get(): Configuration key not found. Key: real-time-handler - Using default value: BacktestingRealTimeHandler
+2025-10-07T01:55:51.1234450Z TRACE:: Config.Get(): Configuration key not found. Key: data-feed-handler - Using default value: FileSystemDataFeed
+2025-10-07T01:55:51.1235278Z TRACE:: Config.Get(): Configuration key not found. Key: result-handler - Using default value: BacktestingResultHandler
+2025-10-07T01:55:51.1236315Z TRACE:: Config.Get(): Configuration key not found. Key: map-file-provider - Using default value: LocalDiskMapFileProvider
+2025-10-07T01:55:51.1238680Z TRACE:: Config.Get(): Configuration key not found. Key: factor-file-provider - Using default value: LocalDiskFactorFileProvider
+2025-10-07T01:55:51.1240437Z TRACE:: Config.Get(): Configuration key not found. Key: data-provider - Using default value: DefaultDataProvider
+2025-10-07T01:55:51.1243189Z TRACE:: Config.Get(): Configuration key not found. Key: object-store - Using default value: LocalObjectStore
+2025-10-07T01:55:51.1247336Z TRACE:: Config.Get(): Configuration key not found. Key: data-permission-manager - Using default value: DataPermissionManager
+2025-10-07T01:55:51.1251212Z TRACE:: Config.Get(): Configuration key not found. Key: data-monitor - Using default value: QuantConnect.Data.DataMonitor
+2025-10-07T01:55:51.1393030Z TRACE:: Config.GetValue(): algorithm-creation-timeout - Using default value: 90
+2025-10-07T01:55:51.1475838Z TRACE:: Config.GetValue(): zip-data-cache-provider - Using default value: 10
+2025-10-07T01:55:51.1489795Z TRACE:: Config.Get(): Configuration key not found. Key: fundamental-data-provider - Using default value: CoarseFundamentalDataProvider
+2025-10-07T01:55:51.1507531Z TRACE:: PythonInitializer.Initialize(): start...
+2025-10-07T01:55:51.1517910Z TRACE:: Config.GetValue(): python-additional-paths - Using default value: System.String[]
+2025-10-07T01:55:51.2530616Z TRACE:: PythonInitializer.Initialize(): ended

@@ -1,0 +1,1 @@
+{ "data-folder": "/home/Data/",     "composer-dll-directory": "/Lean/Launcher/bin/Debug/", "algorithm-language": "Python",     "messaging-handler": "QuantConnect.Messaging.Messaging", "job-queue-handler": "QuantConnect.Queues.JobQueue",     "api-handler": "QuantConnect.Api.Api" }
