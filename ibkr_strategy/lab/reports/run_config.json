@@ -1,0 +1,11 @@
+{
+  "strategies": "rf,extra_trees,gbm,ridge,mlp,gru,ga,rl,ens:rf+gbm+mlp+ga+rl",
+  "oos_start": "2012-01-01",
+  "retrain_weeks": 52,
+  "horizon": 4,
+  "smooth_weeks": 4,
+  "cost_bps": 5.0,
+  "null_runs": 150,
+  "cache": true,
+  "list": false
+}
