@@ -1,0 +1,7 @@
+numpy>=1.26
+pandas>=2.2
+ib_async>=2.0
+pytest>=8
+# research only
+scipy
+matplotlib
