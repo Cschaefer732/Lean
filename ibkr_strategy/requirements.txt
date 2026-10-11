@@ -2,6 +2,9 @@ numpy>=1.26
 pandas>=2.2
 ib_async>=2.0
 pytest>=8
-# research only
+# research + strategy lab
 scipy
 matplotlib
+scikit-learn>=1.4
+lightgbm>=4.3
+torch>=2.2   # CPU build is enough

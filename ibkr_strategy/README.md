@@ -86,7 +86,7 @@ from the Yahoo CSVs (the repo's `Data/` is not modified).
 
 ```bash
 python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
-pytest tests -q                                   # 39 tests, no network or IBKR needed
+pytest tests -q                                   # 56 tests, no network or IBKR needed
 
 # research (needs network once)
 python research/fetch_data.py && python research/run_final_eval.py
@@ -125,6 +125,13 @@ The LEAN algorithm is ready for `live-interactive`. The IB brokerage plugin is a
 (`lean live deploy --brokerage "Interactive Brokers"`) or place its build in `Launcher/Plugins`, and set the `ib-*`
 keys in `Launcher/config.json`.
 
+## Strategy lab (ML / GA / RL)
+
+`lab/` is a leak-free walk-forward tester and builder for random forests, gradient boosting, MLP/GRU deep nets, a genetic
+algorithm, a policy-gradient RL agent and ensembles, with deflated-Sharpe and bootstrap significance tests. Headline
+finding: unconstrained ML did **not** beat the hand-built rotation out-of-sample; ML only helped as a constrained ranker.
+See [`lab/README.md`](lab/README.md) for results and how to add your own strategy. `python -m lab.run`.
+
 ## Layout
 
 ```
@@ -132,5 +139,6 @@ momentum_rotation/   config, stateless signals, order sizing (pure functions, fu
 research/            data download, engine, sweeps, final evaluation, LEAN cross-check
 lean/                LEAN algorithm, data builder, backtest runner
 live/                IBKR broker adapter and weekly rebalancer
-tests/               signal parity with research, no-lookahead, order planning, safety guards, IBKR adapter
+lab/                 walk-forward ML/GA/RL strategy tester and builder (see lab/README.md)
+tests/               signal parity, no-lookahead, order planning, safety guards, IBKR adapter, lab leak detector
 ```
