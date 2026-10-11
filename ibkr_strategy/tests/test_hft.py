@@ -363,3 +363,44 @@ def test_live_venue_post_only_emulation_and_kill_switch():
     v.cash, v.ctx.position = -2000.0, 10
     push_quote(ib, v, 99.00, 500, 99.01, 500, 100)
     assert v.risk.state.halted
+
+
+# ----------------------------------------------------------------------------- CLI guards / recorder
+def test_cli_refuses_live_port_without_flag_and_record_with_send(capsys):
+    from hft.run_live import main
+    assert main(["--send", "--port", "4001"]) == 2
+    assert main(["--record", "--send"]) == 2
+
+
+def test_cli_dry_run_and_record_never_place_orders(tmp_path, monkeypatch):
+    import hft.run_live as rl
+
+    ib = FakeIB()
+    ib.connect = lambda *a, **k: setattr(ib, "readonly", k["readonly"])
+    ib.disconnect = lambda: None
+    v_holder = {}
+    orig = rl.LiveVenue
+
+    class V(orig):
+        def run(self, seconds):
+            v_holder["v"] = self
+            for k in range(3):
+                push_quote(ib, self, 100.00, 500, 100.01, 500, k * 10)
+            self.stop()
+
+    monkeypatch.setattr(rl, "LiveVenue", V)
+    # dry run: readonly connection, nothing sent
+    assert rl.main(["--symbol", "SPY"], ib_factory=lambda: ib) == 0
+    assert ib.readonly is True and ib.placed == []
+    # session window: ticks at 10:00 ET are inside trade hours so intents exist
+    assert len(v_holder["v"].intents) > 0
+
+
+def test_recorder_roundtrips_to_a_day(tmp_path):
+    from hft.recorder import TickRecorder, load_recorded
+    r = TickRecorder("SPY", "20260101")
+    r.on_quote(SimpleNamespace(t=1000, bid=10.0, bsz=100, ask=10.01, asz=200))
+    r.on_trade(SimpleNamespace(t=1001, px=10.0, sz=50))
+    p = r.save(tmp_path)
+    d = load_recorded(p, "SPY", "20260101")
+    assert d.q_bid[0] == 10.0 and d.t_sz[0] == 50 and d.q_t.dtype == np.int64

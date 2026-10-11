@@ -53,7 +53,7 @@ class LiveContext:
 
 class LiveVenue:
     def __init__(self, ib, contract, strategy: Strategy, *, dry_run: bool = True, limits: RiskLimits | None = None,
-                 fees: FeeModel = IBKR_PRO_TIERED, trade_from_ms: int = OPEN_MS + 5 * 60_000, trade_until_ms: int = CLOSE_MS - 5 * 60_000):
+                 fees: FeeModel = IBKR_PRO_TIERED, recorder=None, trade_from_ms: int = OPEN_MS + 5 * 60_000, trade_until_ms: int = CLOSE_MS - 5 * 60_000):
         self.ib, self.contract, self.strategy, self.dry_run, self.fees = ib, contract, strategy, dry_run, fees
         self.risk = RiskGate(limits or RiskLimits(max_position=200, max_order_qty=100, max_loss=100.0))
         self.ctx = LiveContext(self)
@@ -66,6 +66,7 @@ class LiveVenue:
         self._t_idx = 0
         self._quote_ticker = self._trade_ticker = None
         self.intents: list[tuple] = []
+        self.recorder = recorder
 
     # -- wiring ---------------------------------------------------------------------------------------------------
     def start(self) -> None:
@@ -96,6 +97,8 @@ class LiveVenue:
             if tk.bidPrice <= 0 or tk.askPrice <= 0 or tk.bidPrice >= tk.askPrice:
                 continue
             q = Quote(ms_since_midnight_et(tk.time), tk.bidPrice, float(tk.bidSize), tk.askPrice, float(tk.askSize))
+            if self.recorder is not None:
+                self.recorder.on_quote(q)
             t0 = time.perf_counter_ns()
             self.lat.record("feed_age_us", max(0.0, (dt.datetime.now(dt.timezone.utc) - tk.time).total_seconds() * 1e6))
             self.ctx.quote, self.ctx.now = q, q.t
@@ -115,7 +118,10 @@ class LiveVenue:
                 continue
             mid = q.mid
             side = 1 if tk.price > mid else (-1 if tk.price < mid else 0)
-            self.strategy.on_trade(self.ctx, Trade(ms_since_midnight_et(tk.time), tk.price, float(tk.size), side))
+            tr = Trade(ms_since_midnight_et(tk.time), tk.price, float(tk.size), side)
+            if self.recorder is not None:
+                self.recorder.on_trade(tr)
+            self.strategy.on_trade(self.ctx, tr)
 
     def _check_pnl(self, q: Quote) -> None:
         self.risk.check_pnl(self.cash + self.ctx.position * q.mid)

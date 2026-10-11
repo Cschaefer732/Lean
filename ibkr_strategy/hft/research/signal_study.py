@@ -68,7 +68,7 @@ def study(symbol: str, horizon: str = "1s", verbose=True):
         print(f"mean realised {horizon} mid move when model is in its top 5% / bottom 5% / top 1%: "
               f"{out['top5_move']:+.3f} / {out['bot5_move']:+.3f} / {out['top1_move']:+.3f} ticks")
         print(f"for scale: a taker pays at least HALF the spread ({0.5 * out['spread_ticks_top5']:.2f} tick) on entry plus half on exit, "
-              f"and ~0.65 tick/share of commissions+exchange fees each way at IBKR tiered rates")
+              f"and ~0.67 tick/share of commissions+exchange fees each way at IBKR Pro tiered rates when taking")
         print("top features:", out["imp"])
     # decay across horizons for the model-free imbalance signal
     out["decay"] = {h: ic(Xte[:, 0], np.concatenate([data[d]["y"][h] for d in test])) for h in HORIZONS_MS}

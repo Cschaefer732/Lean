@@ -132,6 +132,27 @@ algorithm, a policy-gradient RL agent and ensembles, with deflated-Sharpe and bo
 finding: unconstrained ML did **not** beat the hand-built rotation out-of-sample; ML only helped as a constrained ranker.
 See [`lab/README.md`](lab/README.md) for results and how to add your own strategy. `python -m lab.run`.
 
+## HFT / market-microstructure system
+
+`hft/` is a market-making research bench and execution skeleton built on **real SPY/BAC/AIG/IBM tick data** (the AlgoSeek
+sample shipped with LEAN): NBBO consolidation, vectorised and online L1 features, an event-driven replay venue with
+latency, queue-position and cancel/fill races, fee models, a pre-trade risk gate with kill switch, and an IBKR adapter
+(dry-run by default, paper-port guard, tick recorder, latency stats). The same `Strategy` objects run in replay and live.
+
+Honest headline: the only viable niche is passive market making in SPY-like names, protected by an order-book-imbalance
+alpha. The alpha is real out of sample but small, the edge lives at single-digit **milliseconds** and is gone by about
+**50 ms** one-way latency, and at **IBKR Pro tiered fees it loses money** (+$1,050 vs -$3,306 on the two test days). IBKR's
+API path is not an HFT venue. Taking liquidity is unprofitable by a wide margin. Full design, results, caveats and the
+roadmap are in [`hft/docs/DESIGN.md`](hft/docs/DESIGN.md); raw outputs are in `hft/reports/`.
+
+```bash
+python -m hft.research.signal_study spy bac aig ibm   # do L1 features predict the next move? (OOS by day)
+python -m hft.research.mm_study                       # latency / fee / queue sweeps with shuffled-signal control (~30 min)
+python -m hft.research.bench                          # replay throughput and tick-to-decision time
+python -m hft.run_live --symbol SPY --record          # record your own ticks (never sends orders)
+python -m hft.run_live --symbol SPY --seconds 600     # dry-run against IB Gateway
+```
+
 ## Layout
 
 ```
@@ -140,5 +161,6 @@ research/            data download, engine, sweeps, final evaluation, LEAN cross
 lean/                LEAN algorithm, data builder, backtest runner
 live/                IBKR broker adapter and weekly rebalancer
 lab/                 walk-forward ML/GA/RL strategy tester and builder (see lab/README.md)
-tests/               signal parity, no-lookahead, order planning, safety guards, IBKR adapter, lab leak detector
+hft/                 tick-level market-making bench: NBBO, replay venue, risk, IBKR adapter (see hft/docs/DESIGN.md)
+tests/               signal parity, no-lookahead, order planning, safety guards, IBKR adapter, lab leak detector, HFT fill/latency/risk
 ```

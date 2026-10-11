@@ -1,0 +1,3 @@
+replay SPY 20131010: 1,191,497 market events in 6.4s -> 185k events/s (incl. simulator, risk gate, strategy, latency timing)
+strategy callbacks measured inside the simulator (us): n=1,155,548 p50=3.2 p99=12.0 p99.9=22.4 max=1767
+isolated PassiveMM.on_quote (features + alpha + quote logic), CPython 3.11.17: p50=2.4us p99=4.0us p99.9=5.7us
