@@ -69,7 +69,7 @@ bond-vs-stock momentum) and asset-class flags. All are computed strictly from da
 - **Selection caveats.** The hybrids were designed *after* seeing round-1 results (declared as extra trials; the DSR
   counts 13 strategies, not my design iterations). The production rotation was designed with knowledge of this period, so
   it is an optimistic baseline that the ML models are *not* given. Treat `mlp_h`'s IC as promising, not proven.
-- GA and RL training-window fitness was far higher than out-of-sample results (RL train Sharpe ~1.9 vs 0.3 OOS): the
+- GA and RL training-window fitness was far higher than out-of-sample results (in a single-block check the RL agent's training-window Sharpe was ~1.9 vs 0.3 out-of-sample over the full walk-forward): the
   textbook overfitting signature, and why every result above is walk-forward.
 - **Leak detector**: `tests/test_lab.py` runs the models on driftless random-walk prices and requires |IC| < 0.06;
   a leaking harness would show a large IC.
