@@ -14,6 +14,8 @@ are external facts about IBKR/regulation that must be checked against current do
   deployment *through the IBKR API* is not supported by this evidence.
 * At **IBKR Pro tiered fees the strategy loses money** even at 1 ms latency; it only breaks even with rebate-tier pricing
   that is available to exchange-connected firms, not to a retail account.
+* Two levers tried to rescue it under IBKR constraints both failed: a rebate-free fee schedule is the binding problem
+  (section 4.2), and a wider-spread name does not help because adverse selection grows with the spread (section 4.2b).
 * The queue-position model decides whether the edge exists at all (results range from clearly positive to zero depending
   on assumptions), so the replay result is a hypothesis to be tested with small live size, not a forecast.
 
@@ -73,7 +75,7 @@ queue model**.
 | Fees | `hft/fees.py` | free / IBKR Pro tiered / prop rebate tier (approximations, parameters) |
 | Risk | `hft/risk.py` | pre-trade checks, split order/cancel message budgets, loss kill switch |
 | IBKR adapter | `hft/ibkr_venue.py`, `hft/run_live.py` | dry-run default, paper-port guard, latency stats, tick recorder |
-| Research | `hft/research/` | `signal_study`, `mm_study`, `bench` |
+| Research | `hft/research/` | `signal_study`, `mm_study`, `wide_spread_study`, `bench` |
 
 ### 3.1 Replay timeline semantics
 
@@ -168,6 +170,25 @@ model +$238; no-cancel with 2x pessimism -$20. The sign survives most assumption
 **Statistical power is low**: two test days, one symbol, 2013, per-share edge of roughly 0.1 cent. The shuffled control
 and the block bootstrap are what make the *alpha-versus-baseline* comparison credible; the *absolute* PnL is not a forecast.
 
+### 4.2b Does a wider spread rescue it? No (`hft/reports/wide_spread_ibm.txt`)
+
+Hypothesis: on a 3-tick-spread name (IBM in this sample), quoting one tick inside the touch captures far more per fill
+(+1.2 ticks vs +0.5 on SPY) and might survive IBKR fees and latency. Same protocol (alpha and threshold on Oct 7-9,
+test on Oct 10-11, IBKR's 50 msg/s cap enforced, 250 ms minimum requote interval when latency > 0).
+
+| Fees | Latency | touch MM | inside MM | inside MM + alpha pull |
+|---|---|---|---|---|
+| free | 0 | -$1,306 | -$1,285 | +$33 |
+| free | 50 ms | -$989 | -$775 | -$282 |
+| free | 250 ms | -$849 | -$613 | -$283 |
+| IBKR Pro tiered | 0 | -$3,569 | -$3,379 | -$1,614 |
+| IBKR Pro tiered | 50 ms | -$2,549 | -$2,332 | -$1,632 |
+| IBKR Pro tiered | 250 ms | -$2,228 | -$1,980 | -$1,504 |
+
+The extra spread capture is more than offset by adverse selection (1 s markout about -0.5 tick, 5 s markout about -1 tick),
+so **every IBKR configuration loses money and even the zero-fee rows are at best break-even**. Caveat: the IBM sample is
+sparse (about 22k NBBO events per day), so fills are less trustworthy than for SPY; this is a negative result on weaker data.
+
 ### 4.3 Measured speed of this implementation (`hft/reports/bench.txt`)
 
 * Replay: about 185k market events/s including simulator, risk gate and strategy (1.19M events in 6.4 s, one SPY day).
@@ -205,10 +226,20 @@ Layered, and identical in replay and live:
 4. **Session window**: no trading in the first/last 5 minutes (auction noise); end-of-session cancel-all.
 5. **Live-specific**: dry-run by default, read-only connection unless `--send`, refusal of live ports without an explicit
    flag, refusal to combine recording with order sending.
-6. **Still missing for production** (not built): heartbeat watchdog / cancel-on-disconnect (consider short-lived GTD
-   orders **(verify)**), order-state reconciliation against IBKR's open-orders and executions on reconnect, position
-   reconciliation, stale-feed detection (halt if quotes stop for N ms), self-trade prevention across strategies, and
-   exchange-level circuit-breaker / LULD awareness.
+6. **Connection and state safety** (built, unit-tested against a fake IB, never run against a real gateway):
+   * stale-feed halt: no quote for `--stale-feed-s` (default 2 s) during the session pulls all orders and blocks quoting
+     until fresh data arrives;
+   * disconnect handling: quoting stops immediately; bounded reconnect attempts (default 5, every 5 s) then a hard halt;
+     after reconnecting, tick subscriptions are re-created and state is reconciled;
+   * reconciliation: broker position wins (mismatches are counted), cash is rebuilt from broker executions, and every
+     order still resting at the broker for the symbol is cancelled rather than adopted;
+   * execution reports are de-duplicated by `execId`, and a fill for an order we already forgot still updates position
+     and cash;
+   * the loss kill switch measures PnL on session trades only (a position carried in at startup is excluded; an earlier
+     version counted its full market value as profit).
+7. **Still missing**: a broker-side dead-man switch (the above cannot cancel orders while the link is down; consider
+   short-lived GTD orders **(verify)**), self-trade prevention across strategies, LULD/halt awareness, commission-report
+   updates arriving after the fill, and partial-fill/ack-latency instrumentation beyond `place_call_us`.
 
 ## 7. How to use it
 
@@ -237,6 +268,6 @@ python -m hft.run_live --symbol SPY --send --qty 100 --max-pos 200
    a DMA/FIX broker with rebate pricing and a nearby host, or colocation, which changes the cost structure entirely.
 4. **Calibrate the queue model with small live fills** (paper fills are synthetic). Compare simulated versus actual fill
    rate and markout per order; tune `queue_pessimism` until they match.
-5. Add the missing production risk items in section 6.6 before any non-trivial size.
+5. Add the missing production risk items in section 6.7 before any non-trivial size.
 6. Only then consider richer alpha (full depth, cross-asset lead-lag with ES futures/QQQ, trade-through/ISO detection),
    larger universe, and a compiled hot path for tier A/B.

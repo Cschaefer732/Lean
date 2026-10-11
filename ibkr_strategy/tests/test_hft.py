@@ -563,3 +563,20 @@ def test_startup_cancels_stray_orders_but_dry_run_never_does():
     v = LiveVenue(ib, SimpleNamespace(symbol="SPY"), Script([]), dry_run=False)
     v.start()
     assert ib.cancelled == ["stray"]
+
+
+def test_inside_mm_improves_the_touch_only_when_the_spread_is_wide_enough():
+    from hft.strategies import InsideMM
+    wide = [(T0 + k * 100, 10.00, 500, 10.04, 500) for k in range(20)]       # 4 ticks
+    seen = {}
+
+    class Spy(InsideMM):
+        def on_quote(self, ctx, q):
+            super().on_quote(ctx, q)
+            seen.update({o.side: o.px for o in ctx.open_orders()})
+    Replay(make_day(wide, []), Spy(min_spread_ticks=3), cfg()).run()
+    assert seen == {BUY: 10.01, SELL: 10.03}
+    seen.clear()
+    narrow = [(T0 + k * 100, 10.00, 500, 10.02, 500) for k in range(20)]     # 2 ticks: quote nothing
+    Replay(make_day(narrow, []), Spy(min_spread_ticks=3), cfg()).run()
+    assert seen == {}

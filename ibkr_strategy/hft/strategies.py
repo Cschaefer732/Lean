@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from .core import BUY, SELL, Context, Fill, Order, Quote, Status, Strategy, Trade
+from .core import BUY, SELL, TICK, Context, Fill, Order, Quote, Status, Strategy, Trade, round_tick
 from .signals import LinearAlpha, OnlineFeatures
 
 
@@ -56,7 +56,11 @@ class PassiveMM(Strategy):
                 want[SELL] = False
             if not (want[BUY] and want[SELL]):
                 self.n_pulls += 1
-        for side, px in ((BUY, q.bid), (SELL, q.ask)):
+        targets = self._targets(q)
+        for side in (BUY, SELL):
+            px = targets[side]
+            if px is None:
+                want[side] = False
             orders = ctx.open_orders(side)
             if any(o.status == Status.CANCEL_PENDING for o in orders):
                 continue
@@ -69,5 +73,22 @@ class PassiveMM(Strategy):
                 if ctx.place(side, px, self.qty, post_only=True, tag=self.name):
                     self._last_action[side] = ctx.now
 
+    def _targets(self, q: Quote) -> dict:
+        return {BUY: q.bid, SELL: q.ask}
+
     def on_end(self, ctx: Context) -> None:
         ctx.cancel_all()
+
+
+class InsideMM(PassiveMM):
+    """Wide-spread variant: improve the touch by one tick on each side, but only when the spread is wide enough that
+    both improved quotes still earn `min_edge_ticks` before fees (otherwise quote nothing)."""
+
+    def __init__(self, min_spread_ticks: int = 3, **kw):
+        super().__init__(**kw)
+        self.min_spread_ticks = min_spread_ticks
+
+    def _targets(self, q: Quote) -> dict:
+        if round(q.spread / TICK) < self.min_spread_ticks:
+            return {BUY: None, SELL: None}
+        return {BUY: round_tick(q.bid + TICK), SELL: round_tick(q.ask - TICK)}
