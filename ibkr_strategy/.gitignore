@@ -1,0 +1,9 @@
+research/data/
+research/grid_results.csv
+lean/data/
+lean/results/
+__pycache__/
+.pytest_cache/
+state/
+lab/cache/
+lab/__pycache__/
