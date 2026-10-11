@@ -53,7 +53,8 @@ class LiveContext:
 
 class LiveVenue:
     def __init__(self, ib, contract, strategy: Strategy, *, dry_run: bool = True, limits: RiskLimits | None = None,
-                 fees: FeeModel = IBKR_PRO_TIERED, recorder=None, trade_from_ms: int = OPEN_MS + 5 * 60_000, trade_until_ms: int = CLOSE_MS - 5 * 60_000):
+                 fees: FeeModel = IBKR_PRO_TIERED, recorder=None, stale_feed_s: float = 2.0, reconnect=None,
+                 max_reconnects: int = 5, reconnect_every_s: float = 5.0, clock=time.time, trade_from_ms: int = OPEN_MS + 5 * 60_000, trade_until_ms: int = CLOSE_MS - 5 * 60_000):
         self.ib, self.contract, self.strategy, self.dry_run, self.fees = ib, contract, strategy, dry_run, fees
         self.risk = RiskGate(limits or RiskLimits(max_position=200, max_order_qty=100, max_loss=100.0))
         self.ctx = LiveContext(self)
@@ -67,14 +68,120 @@ class LiveVenue:
         self._quote_ticker = self._trade_ticker = None
         self.intents: list[tuple] = []
         self.recorder = recorder
+        self.clock, self.stale_feed_s, self._reconnect = clock, stale_feed_s, reconnect
+        self.max_reconnects, self.reconnect_every_s = max_reconnects, reconnect_every_s
+        self.connected = True
+        self.needs_reconcile = False
+        self.feed_stale = False
+        self.pos0 = 0                       # position held before this session; excluded from PnL
+        self._last_tick_wall: float | None = None
+        self._last_reconnect = -1e18
+        self._reconnect_attempts = 0
+        self._seen_exec: set = set()
+        self._baseline_exec: set = set()
+        self.recon = {"position_mismatch": 0, "orders_cancelled": 0, "reconnects": 0, "stale_halts": 0}
 
     # -- wiring ---------------------------------------------------------------------------------------------------
     def start(self) -> None:
-        self.ctx.position = int(sum(p.position for p in self.ib.positions() if p.contract.symbol == self.contract.symbol))
+        self._baseline_exec = {self._exec_id(f) for f in self._broker_fills()}
+        self._seen_exec |= self._baseline_exec
+        self.reconcile(startup=True)
+        self.pos0 = self.ctx.position
+        ev = getattr(self.ib, "disconnectedEvent", None)
+        if ev is not None:
+            ev += self._on_disconnect
+        self._subscribe()
+
+    def _subscribe(self) -> None:
+        self._q_idx = self._t_idx = 0
         self._quote_ticker = self.ib.reqTickByTickData(self.contract, "BidAsk", 0, False)
         self._trade_ticker = self.ib.reqTickByTickData(self.contract, "AllLast", 0, False)
         self._quote_ticker.updateEvent += self._on_quote_update
         self._trade_ticker.updateEvent += self._on_trade_update
+
+    # -- connection health, staleness, reconciliation -----------------------------------------------------------------
+    def _on_disconnect(self) -> None:
+        self.connected = False
+        self.ctx.can_trade = False
+        self.needs_reconcile = True
+        log.error("IB disconnected: quoting stopped. Orders already at the broker may still be live until reconciled.")
+
+    def _broker_fills(self) -> list:
+        try:
+            return [f for f in self.ib.fills() if f.contract.symbol == self.contract.symbol]
+        except AttributeError:
+            return []
+
+    @staticmethod
+    def _exec_id(fill):
+        return getattr(fill.execution, "execId", None) or id(fill)
+
+    def reconcile(self, startup: bool = False) -> None:
+        """Make local state match the broker: position, cash (from executions), and no stray resting orders.
+
+        Everything resting at the broker for this symbol is cancelled rather than adopted: a market maker re-quotes from
+        scratch, and an order whose state we can no longer vouch for is a liability."""
+        sym = self.contract.symbol
+        broker_pos = int(sum(p.position for p in self.ib.positions() if p.contract.symbol == sym))
+        if not startup and broker_pos != self.ctx.position:
+            self.recon["position_mismatch"] += 1
+            log.warning("position mismatch after reconcile: local %d, broker %d (broker wins)", self.ctx.position, broker_pos)
+        self.ctx.position = broker_pos
+        if not startup:
+            self.cash = 0.0
+            for f in self._broker_fills():
+                eid = self._exec_id(f)
+                if eid in self._baseline_exec:
+                    continue
+                self._seen_exec.add(eid)
+                side = BUY if f.execution.side.upper().startswith("B") else SELL
+                self.cash -= side * float(f.execution.price) * int(f.execution.shares) + float(getattr(f.commissionReport, "commission", 0.0) or 0.0)
+        if not self.dry_run:
+            for tr in self.ib.openTrades():
+                if tr.contract.symbol == sym:
+                    self.ib.cancelOrder(tr.order)
+                    self.recon["orders_cancelled"] += 1
+        for o in self.ctx._orders.values():
+            o.status = Status.CANCELLED
+        self.ctx._orders.clear()
+        self._ib_trades.clear()
+        self.needs_reconcile = False
+
+    def health_check(self) -> None:
+        """Called from the run loop: reconnect with a bounded retry budget, reconcile, and halt quoting on a dead feed."""
+        now = self.clock()
+        is_up = getattr(self.ib, "isConnected", lambda: True)()
+        if not is_up or not self.connected:
+            self.connected = False
+            self.ctx.can_trade = False
+            if now - self._last_reconnect < self.reconnect_every_s:
+                return
+            self._last_reconnect = now
+            if self._reconnect is None or self._reconnect_attempts >= self.max_reconnects:
+                self.risk.halt("disconnected")
+                return
+            self._reconnect_attempts += 1
+            try:
+                self._reconnect()
+                self._subscribe()
+                self.connected = True
+                self._reconnect_attempts = 0
+                self.recon["reconnects"] += 1
+                self.reconcile()
+            except Exception as exc:  # noqa: BLE001 - any failure leaves us not-trading and retrying
+                log.error("reconnect attempt %d failed: %s", self._reconnect_attempts, exc)
+            return
+        if self.needs_reconcile:
+            self.reconcile()
+        t_ms = ms_since_midnight_et(dt.datetime.fromtimestamp(now, dt.timezone.utc))
+        if self._last_tick_wall is not None and self.t_start <= t_ms < self.t_stop and now - self._last_tick_wall > self.stale_feed_s:
+            if not self.feed_stale:
+                self.feed_stale = True
+                self.recon["stale_halts"] += 1
+                log.error("no quote for %.1fs: pulling all orders", now - self._last_tick_wall)
+            self.ctx.can_trade = False
+            if self.ctx.open_orders():
+                self.ctx.cancel_all()
 
     def stop(self) -> None:
         self.ctx.cancel_all()
@@ -87,6 +194,7 @@ class LiveVenue:
         end = time.time() + seconds
         while time.time() < end and not self.risk.state.halted:
             self.ib.sleep(0.05)
+            self.health_check()
         self.stop()
 
     # -- market data ----------------------------------------------------------------------------------------------
@@ -102,7 +210,9 @@ class LiveVenue:
             t0 = time.perf_counter_ns()
             self.lat.record("feed_age_us", max(0.0, (dt.datetime.now(dt.timezone.utc) - tk.time).total_seconds() * 1e6))
             self.ctx.quote, self.ctx.now = q, q.t
-            self.ctx.can_trade = self.t_start <= q.t < self.t_stop and not self.risk.state.halted
+            self._last_tick_wall = self.clock()
+            self.feed_stale = False
+            self.ctx.can_trade = self.t_start <= q.t < self.t_stop and not self.risk.state.halted and self.connected
             if self.risk.state.halted and self.ctx.open_orders():
                 self.ctx.cancel_all()
             self.strategy.on_quote(self.ctx, q)
@@ -124,7 +234,7 @@ class LiveVenue:
             self.strategy.on_trade(self.ctx, tr)
 
     def _check_pnl(self, q: Quote) -> None:
-        self.risk.check_pnl(self.cash + self.ctx.position * q.mid)
+        self.risk.check_pnl(self.cash + (self.ctx.position - self.pos0) * q.mid)
 
     # -- orders ---------------------------------------------------------------------------------------------------
     def place(self, ctx: LiveContext, side, px, qty, post_only, tag):
@@ -168,18 +278,23 @@ class LiveVenue:
         self.ib.cancelOrder(self._ib_trades[order.id].order)
 
     def _on_fill(self, oid: int, fill) -> None:
+        eid = self._exec_id(fill)
+        if eid in self._seen_exec:
+            return
+        self._seen_exec.add(eid)
+        side = BUY if fill.execution.side.upper().startswith("B") else SELL
+        qty, px = int(fill.execution.shares), float(fill.execution.price)
+        fee = float(getattr(fill.commissionReport, "commission", 0.0) or 0.0)
+        # every execution moves position and cash, even for an order we already forgot (e.g. cancelled during a reconcile)
+        self.cash -= side * px * qty + fee
+        self.ctx.position += side * qty
         o = self.ctx._orders.get(oid)
         if o is None:
             return
-        side = BUY if fill.execution.side.upper().startswith("B") else SELL
-        qty, px = int(fill.execution.shares), float(fill.execution.price)
         o.filled += qty
         if o.remaining <= 0:
             o.status = Status.FILLED
             self.ctx._orders.pop(oid, None)
-        fee = float(getattr(fill.commissionReport, "commission", 0.0) or 0.0)
-        self.cash -= side * px * qty + fee
-        self.ctx.position += side * qty
         self.strategy.on_fill(self.ctx, Fill(oid, self.ctx.now, side, px, qty, maker=True, fee=fee))
 
     def _on_status(self, oid: int, trade) -> None:

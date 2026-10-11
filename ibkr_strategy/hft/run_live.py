@@ -40,6 +40,7 @@ def parse(argv):
     p.add_argument("--qty", type=int, default=100)
     p.add_argument("--max-pos", type=int, default=200)
     p.add_argument("--max-loss", type=float, default=100.0)
+    p.add_argument("--stale-feed-s", type=float, default=2.0, help="pull all orders if no quote arrives for this long in-session")
     p.add_argument("--min-requote-ms", type=int, default=250, help="keep cancel/replace well inside IBKR's 50 msg/s")
     return p.parse_args(argv)
 
@@ -75,12 +76,14 @@ def main(argv=None, ib_factory=None) -> int:
         if a.record:
             from .core import Strategy
             strat = Strategy()
-        venue = LiveVenue(ib, contract, strat, dry_run=not a.send, recorder=recorder,
+        venue = LiveVenue(ib, contract, strat, dry_run=not a.send, recorder=recorder, stale_feed_s=a.stale_feed_s,
+                          reconnect=lambda: ib.connect(a.host, a.port, clientId=a.client_id, readonly=not a.send, timeout=15),
                           limits=RiskLimits(max_position=a.max_pos, max_order_qty=a.qty, max_loss=a.max_loss))
         venue.start()
         venue.run(a.seconds)
         print(venue.lat.report())
         print("risk rejections:", venue.risk.state.rejected, "halted:", venue.risk.state.halt_reason or "no")
+        print("reconciliation:", venue.recon)
         if recorder:
             print("recorded to", recorder.save(Path(__file__).parent / "cache" / "live"))
         if not a.send:

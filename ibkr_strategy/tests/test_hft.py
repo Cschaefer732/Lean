@@ -317,6 +317,8 @@ class FakeIB:
         self.placed.append(order); self.trades.append(t); return t
 
     def cancelOrder(self, order): self.cancelled.append(order)
+    def openTrades(self): return []
+    def fills(self): return []
 
 
 def push_quote(ib, v, bid, bsz, ask, asz, ms):
@@ -404,3 +406,160 @@ def test_recorder_roundtrips_to_a_day(tmp_path):
     p = r.save(tmp_path)
     d = load_recorded(p, "SPY", "20260101")
     assert d.q_bid[0] == 10.0 and d.t_sz[0] == 50 and d.q_t.dtype == np.int64
+
+
+# ----------------------------------------------------------------------------- live safety: staleness, reconnect, reconcile
+class SafeIB(FakeIB):
+    """FakeIB plus the surface the safety paths use: fills, open orders, connection state."""
+    def __init__(self):
+        super().__init__()
+        self.up, self.positions_now, self.fills_now, self.open_now = True, 0, [], []
+        self.disconnectedEvent = Ev()
+        self.connects = 0
+
+    def isConnected(self): return self.up
+    def positions(self): return [SimpleNamespace(contract=SimpleNamespace(symbol="SPY"), position=self.positions_now)]
+    def fills(self): return self.fills_now
+    def openTrades(self): return self.open_now
+
+    def cancelOrder(self, order): self.cancelled.append(order)
+
+
+def mk_fill(eid, side, shares, price, comm=0.35):
+    return SimpleNamespace(contract=SimpleNamespace(symbol="SPY"), execution=SimpleNamespace(execId=eid, side=side, shares=shares, price=price),
+                           commissionReport=SimpleNamespace(commission=comm))
+
+
+class Clock:
+    t = 1_700_000_000.0
+    def __call__(self): return self.t
+
+
+def et_clock_at(hh, mm):
+    import datetime as dt
+    from zoneinfo import ZoneInfo
+    c = Clock()
+    c.t = dt.datetime(2024, 6, 12, hh, mm, 0, tzinfo=ZoneInfo("America/New_York")).timestamp()
+    return c
+
+
+def test_stale_feed_pulls_orders_and_blocks_quoting_until_fresh_tick():
+    ib, clk = SafeIB(), et_clock_at(10, 0)
+    v = LiveVenue(ib, SimpleNamespace(symbol="SPY"), PassiveMM(qty=100, max_pos=200), dry_run=False, stale_feed_s=2.0, clock=clk)
+    v.start()
+    push_quote(ib, v, 100.00, 500, 100.01, 500, 0)
+    assert len(ib.placed) == 2
+    clk.t += 1.0
+    v.health_check()
+    assert not v.feed_stale and ib.cancelled == []
+    clk.t += 1.5                       # 2.5s without a quote
+    v.health_check()
+    assert v.feed_stale and len(ib.cancelled) == 2 and v.recon["stale_halts"] == 1 and not v.ctx.can_trade
+    push_quote(ib, v, 100.00, 500, 100.01, 500, 3000)   # fresh data resumes quoting
+    assert not v.feed_stale and v.ctx.can_trade
+
+
+def test_stale_feed_is_ignored_outside_trading_hours():
+    ib, clk = SafeIB(), et_clock_at(8, 0)
+    v = LiveVenue(ib, SimpleNamespace(symbol="SPY"), Script([]), dry_run=False, clock=clk)
+    v.start()
+    push_quote(ib, v, 100.00, 500, 100.01, 500, 0)
+    clk.t += 60
+    v.health_check()
+    assert not v.feed_stale
+
+
+def test_disconnect_stops_quoting_then_reconnect_resubscribes_and_reconciles():
+    ib, clk = SafeIB(), et_clock_at(10, 0)
+    calls = []
+
+    def reconnect():
+        calls.append(1)
+        ib.up = True
+    v = LiveVenue(ib, SimpleNamespace(symbol="SPY"), PassiveMM(qty=100, max_pos=300), dry_run=False, clock=clk, reconnect=reconnect, reconnect_every_s=5)
+    v.start()
+    push_quote(ib, v, 100.00, 500, 100.01, 500, 0)
+    assert len(ib.placed) == 2
+    # link drops: an order fills at the broker while we are blind to it, and a stray order is still resting there
+    ib.up = False
+    ib.disconnectedEvent.fire()
+    assert not v.connected and not v.ctx.can_trade
+    ib.positions_now = 100
+    ib.fills_now = [mk_fill("e1", "BOT", 100, 100.00)]
+    ib.open_now = [SimpleNamespace(contract=SimpleNamespace(symbol="SPY"), order=ib.placed[1])]
+    v.health_check()
+    assert calls == [1] and v.connected
+    assert v.ctx.position == 100 and v.recon["position_mismatch"] == 1        # broker wins
+    assert v.cash == pytest.approx(-100.00 * 100 - 0.35)                       # cash rebuilt from broker executions
+    assert ib.cancelled and v.recon["orders_cancelled"] == 1 and v.ctx.open_orders() == []
+    assert len(ib.tickers) == 2 and v._q_idx == 0                              # fresh subscriptions
+
+
+def test_reconnect_budget_is_bounded_then_trading_halts():
+    ib, clk = SafeIB(), et_clock_at(10, 0)
+
+    def reconnect():
+        raise ConnectionError("down")
+    v = LiveVenue(ib, SimpleNamespace(symbol="SPY"), Script([]), dry_run=False, clock=clk, reconnect=reconnect, max_reconnects=3, reconnect_every_s=5)
+    v.start()
+    ib.up = False
+    for _ in range(6):
+        clk.t += 6
+        v.health_check()
+    assert v.risk.state.halted and v.risk.state.halt_reason == "disconnected" and not v.connected
+
+
+def test_no_reconnect_callback_halts_immediately():
+    ib, clk = SafeIB(), et_clock_at(10, 0)
+    v = LiveVenue(ib, SimpleNamespace(symbol="SPY"), Script([]), dry_run=False, clock=clk)
+    v.start()
+    ib.up = False
+    v.health_check()
+    assert v.risk.state.halted
+
+
+def test_duplicate_execution_reports_are_not_double_counted():
+    ib = SafeIB()
+    v = LiveVenue(ib, SimpleNamespace(symbol="SPY"), PassiveMM(qty=100, max_pos=500), dry_run=False)
+    v.start()
+    push_quote(ib, v, 100.00, 500, 100.01, 500, 0)
+    f = SimpleNamespace(execution=SimpleNamespace(execId="x1", side="BOT", shares=100, price=100.00), commissionReport=SimpleNamespace(commission=0.0))
+    for _ in range(2):
+        ib.trades[0].fillEvent.fire(ib.trades[0], f)
+    assert v.ctx.position == 100
+
+
+def test_fill_for_an_order_forgotten_by_reconcile_still_updates_position():
+    ib = SafeIB()
+    v = LiveVenue(ib, SimpleNamespace(symbol="SPY"), PassiveMM(qty=100, max_pos=500), dry_run=False)
+    v.start()
+    push_quote(ib, v, 100.00, 500, 100.01, 500, 0)
+    v.reconcile()                      # forgets local orders
+    f = SimpleNamespace(execution=SimpleNamespace(execId="x2", side="BOT", shares=100, price=100.00), commissionReport=SimpleNamespace(commission=0.0))
+    ib.trades[0].fillEvent.fire(ib.trades[0], f)
+    assert v.ctx.position == 100
+
+
+def test_preexisting_position_does_not_count_as_pnl_for_the_kill_switch():
+    ib = SafeIB()
+    ib.positions_now = 1000                                  # carried in; worth $100k at the mark
+    v = LiveVenue(ib, SimpleNamespace(symbol="SPY"), Script([]), dry_run=False, limits=RiskLimits(max_loss=50.0, max_position=10**6))
+    v.start()
+    assert v.ctx.position == 1000 and v.pos0 == 1000
+    push_quote(ib, v, 100.00, 500, 100.01, 500, 0)
+    assert not v.risk.state.halted
+    push_quote(ib, v, 99.90, 500, 99.91, 500, 100)           # carried position loses $100 at the mark -> counts
+    assert not v.risk.state.halted                           # pnl is measured on session trades only, so flat session = 0
+    v.ctx.position += 100; v.cash -= 100 * 99.91 + 0.35      # session buy of 100, then price falls
+    push_quote(ib, v, 98.00, 500, 98.01, 500, 200)
+    assert v.risk.state.halted
+
+
+def test_startup_cancels_stray_orders_but_dry_run_never_does():
+    ib = SafeIB()
+    ib.open_now = [SimpleNamespace(contract=SimpleNamespace(symbol="SPY"), order="stray")]
+    LiveVenue(ib, SimpleNamespace(symbol="SPY"), Script([]), dry_run=True).start()
+    assert ib.cancelled == []
+    v = LiveVenue(ib, SimpleNamespace(symbol="SPY"), Script([]), dry_run=False)
+    v.start()
+    assert ib.cancelled == ["stray"]
