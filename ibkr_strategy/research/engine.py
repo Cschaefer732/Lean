@@ -40,8 +40,14 @@ def backtest(
 ) -> pd.DataFrame:
     """target: rows = decision dates (close), cols = assets, values = portfolio weights (may sum to <1; remainder in
     cash earning `cash_rets`, or may sum to >1; the excess is borrowed at cash + `borrow_bps`/yr).
-    Decision at close of day d is executed at the close of the `lag`-th next trading day.
+
+    `lag` counts trading days between the decision close and the execution close:
+      lag=1 -> trade at the same close the decision was made on (market-on-close order; new weights earn from d+1)
+      lag=2 -> trade at the next day's close (conservative: signal is one full day stale)
+    lag=0 would let weights earn the decision day's own return (look-ahead) and is rejected.
     """
+    if lag < 1:
+        raise ValueError("lag must be >= 1; lag=0 is look-ahead bias")
     idx = rets.index
     cols = list(rets.columns)
     R = rets.values

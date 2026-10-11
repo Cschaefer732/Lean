@@ -76,5 +76,6 @@ def target_weights(prices: pd.DataFrame, cfg: StrategyConfig = StrategyConfig())
     dates = decision_dates(prices.index, cfg.smoothing_weeks)
     signals = [single_signal(prices.loc[:d], cfg) for d in dates]
     w = sum(signals) / len(signals)
+    w[w < 1e-9] = 0.0
     w[cfg.cash] = max(0.0, 1.0 - float(w.sum()))
     return w

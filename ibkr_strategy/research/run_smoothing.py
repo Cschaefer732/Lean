@@ -37,5 +37,5 @@ show("N=4, lb 1-3-6-12 vw126", smoothed(4, vol_win=126))
 show("N=4, ew weights", smoothed(4, weighting="ew"))
 print()
 print("=== N=4 lag sensitivity ===")
-for lag in (0, 1, 2):
+for lag in (1, 2, 3):
     show(f"N=4 lag{lag}", smoothed(4), lag=lag)

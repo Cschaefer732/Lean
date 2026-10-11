@@ -75,6 +75,6 @@ for c in (0, 5, 10, 25, 50):
     bt = backtest(tgt, rets, cost_bps=c, cash_rets=cash_r)
     print(fmt(f"cost {c:2d}bps/turnover FULL", stats(bt['ret'].loc[IS.start :], cash_r)))
 print("\n=== 8. execution lag sensitivity ===")
-for lag in (0, 1, 2, 3):
+for lag in (1, 2, 3):
     bt = backtest(tgt, rets, lag=lag, cash_rets=cash_r)
     print(fmt(f"lag {lag}d FULL", stats(bt["ret"].loc[IS.start :], cash_r)))

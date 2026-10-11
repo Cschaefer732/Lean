@@ -32,7 +32,8 @@ spy = backtest(buy_hold(["SPY"], px), rets, cash_rets=cash_r)
 sixty = backtest(buy_hold(["SPY", "IEF"], px, {"SPY": 0.6, "IEF": 0.4}), rets, cash_rets=cash_r)
 
 print("\n=== headline (2007-01 -> 2026-10, 1-day lag, 5bps/turnover) ===")
-for n, b in (("STRATEGY", bt), ("SPY", spy), ("60/40", sixty)):
+bt2 = backtest(rot, rets, cash_rets=cash_r, lag=2)
+for n, b in (("STRATEGY (MOC, same-close)", bt), ("STRATEGY (next-day close, lag 2)", bt2), ("SPY", spy), ("60/40", sixty)):
     print(fmt(n, stats(b["ret"].loc[START:], cash_r)))
 
 print("\n=== calendar years (%) ===")
