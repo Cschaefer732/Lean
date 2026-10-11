@@ -1,0 +1,46 @@
+# IBM wide-spread market making (median spread 3 ticks, 22,375 NBBO events/day)
+
+alpha {'imb': np.float64(0.0549), 'flow_100ms': np.float64(0.039), 'flow_1s': np.float64(0.0189)}
+
+## train: choose pull threshold (fee-free, 0 latency)
+pull=None: pnl $ -1024.00 |   7988 fills   798800 sh |  -0.128 c/sh | capture +1.175 markout1s -0.535 5s -1.044 ticks | mean|pos| 186
+pull=0.03: pnl $ +1035.00 |   6250 fills   625000 sh |  +0.166 c/sh | capture +1.195 markout1s -0.431 5s -0.840 ticks | mean|pos| 183
+pull=0.06: pnl $   +71.00 |   7476 fills   747600 sh |  +0.009 c/sh | capture +1.169 markout1s -0.495 5s -0.968 ticks | mean|pos| 183
+pull=0.1: pnl $  -337.00 |   7848 fills   784800 sh |  -0.043 c/sh | capture +1.170 markout1s -0.513 5s -1.004 ticks | mean|pos| 184
+pull=0.2: pnl $  -758.00 |   7964 fills   796400 sh |  -0.095 c/sh | capture +1.175 markout1s -0.522 5s -1.027 ticks | mean|pos| 185
+selected pull = 0.03
+
+## test days: fees x latency (min requote 250 ms whenever latency > 0, to respect IBKR's message budget)
+
+### fees: free
+L=   0ms touch MM (naive)         pnl $ -1305.52 |   5337 fills   474076 sh |  -0.275 c/sh | capture +1.432 markout1s -0.703 5s -1.411 ticks | mean|pos| 204
+L=   0ms inside MM (naive)        pnl $ -1285.00 |   4833 fills   483300 sh |  -0.266 c/sh | capture +1.262 markout1s -0.555 5s -1.137 ticks | mean|pos| 182
+L=   0ms inside MM + alpha pull   pnl $   +33.00 |   3802 fills   380200 sh |  +0.009 c/sh | capture +1.287 markout1s -0.455 5s -0.924 ticks | mean|pos| 175
+L=  50ms touch MM (naive)         pnl $  -989.30 |   3668 fills   331412 sh |  -0.299 c/sh | capture +1.319 markout1s -0.687 5s -1.399 ticks | mean|pos| 196
+L=  50ms inside MM (naive)        pnl $  -775.06 |   3598 fills   359485 sh |  -0.216 c/sh | capture +1.171 markout1s -0.498 5s -1.023 ticks | mean|pos| 198
+L=  50ms inside MM + alpha pull   pnl $  -281.66 |   3121 fills   311695 sh |  -0.090 c/sh | capture +1.209 markout1s -0.486 5s -0.963 ticks | mean|pos| 196
+L= 250ms touch MM (naive)         pnl $  -849.30 |   3237 fills   294100 sh |  -0.289 c/sh | capture +1.279 markout1s -0.679 5s -1.371 ticks | mean|pos| 191
+L= 250ms inside MM (naive)        pnl $  -612.84 |   3162 fills   315662 sh |  -0.194 c/sh | capture +1.154 markout1s -0.493 5s -1.023 ticks | mean|pos| 200
+L= 250ms inside MM + alpha pull   pnl $  -283.42 |   2820 fills   281512 sh |  -0.101 c/sh | capture +1.187 markout1s -0.474 5s -0.968 ticks | mean|pos| 201
+
+### fees: prop_rebate_tier
+L=   0ms touch MM (naive)         pnl $ -1273.06 |   5337 fills   474076 sh |  -0.269 c/sh | capture +1.432 markout1s -0.703 5s -1.411 ticks | mean|pos| 204
+L=   0ms inside MM (naive)        pnl $ -1250.83 |   4833 fills   483300 sh |  -0.259 c/sh | capture +1.262 markout1s -0.555 5s -1.137 ticks | mean|pos| 182
+L=   0ms inside MM + alpha pull   pnl $   +59.91 |   3802 fills   380200 sh |  +0.016 c/sh | capture +1.287 markout1s -0.455 5s -0.924 ticks | mean|pos| 175
+L=  50ms touch MM (naive)         pnl $  -966.08 |   3668 fills   331412 sh |  -0.292 c/sh | capture +1.319 markout1s -0.687 5s -1.399 ticks | mean|pos| 196
+L=  50ms inside MM (naive)        pnl $  -747.98 |   3598 fills   359485 sh |  -0.208 c/sh | capture +1.171 markout1s -0.498 5s -1.023 ticks | mean|pos| 198
+L=  50ms inside MM + alpha pull   pnl $  -258.79 |   3121 fills   311695 sh |  -0.083 c/sh | capture +1.209 markout1s -0.486 5s -0.963 ticks | mean|pos| 196
+L= 250ms touch MM (naive)         pnl $  -829.20 |   3237 fills   294100 sh |  -0.282 c/sh | capture +1.279 markout1s -0.679 5s -1.371 ticks | mean|pos| 191
+L= 250ms inside MM (naive)        pnl $  -588.73 |   3162 fills   315662 sh |  -0.187 c/sh | capture +1.154 markout1s -0.493 5s -1.023 ticks | mean|pos| 200
+L= 250ms inside MM + alpha pull   pnl $  -263.18 |   2820 fills   281512 sh |  -0.093 c/sh | capture +1.187 markout1s -0.474 5s -0.968 ticks | mean|pos| 201
+
+### fees: ibkr_pro_tiered
+L=   0ms touch MM (naive)         pnl $ -3569.49 |   5337 fills   474076 sh |  -0.753 c/sh | capture +1.432 markout1s -0.703 5s -1.411 ticks | mean|pos| 204
+L=   0ms inside MM (naive)        pnl $ -3379.05 |   4833 fills   483300 sh |  -0.699 c/sh | capture +1.262 markout1s -0.555 5s -1.137 ticks | mean|pos| 182
+L=   0ms inside MM + alpha pull   pnl $ -1614.33 |   3802 fills   380200 sh |  -0.425 c/sh | capture +1.287 markout1s -0.455 5s -0.924 ticks | mean|pos| 175
+L=  50ms touch MM (naive)         pnl $ -2549.48 |   3668 fills   331412 sh |  -0.769 c/sh | capture +1.319 markout1s -0.687 5s -1.399 ticks | mean|pos| 196
+L=  50ms inside MM (naive)        pnl $ -2331.50 |   3598 fills   359485 sh |  -0.649 c/sh | capture +1.171 markout1s -0.498 5s -1.023 ticks | mean|pos| 198
+L=  50ms inside MM + alpha pull   pnl $ -1632.48 |   3121 fills   311695 sh |  -0.524 c/sh | capture +1.209 markout1s -0.486 5s -0.963 ticks | mean|pos| 196
+L= 250ms touch MM (naive)         pnl $ -2228.10 |   3237 fills   294100 sh |  -0.758 c/sh | capture +1.279 markout1s -0.679 5s -1.371 ticks | mean|pos| 191
+L= 250ms inside MM (naive)        pnl $ -1980.22 |   3162 fills   315662 sh |  -0.627 c/sh | capture +1.154 markout1s -0.493 5s -1.023 ticks | mean|pos| 200
+L= 250ms inside MM + alpha pull   pnl $ -1504.45 |   2820 fills   281512 sh |  -0.534 c/sh | capture +1.187 markout1s -0.474 5s -0.968 ticks | mean|pos| 201

@@ -1,0 +1,70 @@
+# SPY passive market making (train 20131007..20131009, test 20131010..20131011)
+
+alpha weights {'imb': np.float64(0.1752), 'flow_100ms': np.float64(0.0023), 'flow_1s': np.float64(-0.0)} intercept -0.0048
+
+## 1. Pull-threshold selection (train days, fee-free, 0 latency)
+pull=None: pnl $ -4750.63 |  69031 fills  5360062 sh |  -0.089 c/sh | capture +0.467 markout1s -0.496 5s -0.552 ticks | mean|pos| 204
+pull=0.03: pnl $ +1668.74 |  13483 fills  1125973 sh |  +0.148 c/sh | capture +0.498 markout1s -0.318 5s -0.320 ticks | mean|pos| 215
+pull=0.06: pnl $ +1937.40 |  19045 fills  1560407 sh |  +0.124 c/sh | capture +0.497 markout1s -0.357 5s -0.372 ticks | mean|pos| 212
+pull=0.1: pnl $ +1224.83 |  29295 fills  2352538 sh |  +0.052 c/sh | capture +0.493 markout1s -0.403 5s -0.448 ticks | mean|pos| 209
+pull=0.15: pnl $  -810.11 |  49926 fills  3909204 sh |  -0.021 c/sh | capture +0.482 markout1s -0.453 5s -0.511 ticks | mean|pos| 205
+pull=0.25: pnl $ -4747.63 |  68869 fills  5345298 sh |  -0.089 c/sh | capture +0.467 markout1s -0.495 5s -0.551 ticks | mean|pos| 204
+
+selected pull = 0.06
+
+## 2. Latency sweep (test days, prop-rebate fees). One-way latency applies to market data AND to each order/ack leg
+L=     0ms naive (always quote)     pnl $  +576.36 |  37738 fills  2895064 sh |  +0.020 c/sh | capture +0.474 markout1s -0.403 5s -0.454 ticks | mean|pos| 210
+L=     0ms alpha pull               pnl $ +1436.02 |  10530 fills   850062 sh |  +0.169 c/sh | capture +0.500 markout1s -0.256 5s -0.287 ticks | mean|pos| 212
+L=     0ms shuffled-alpha control   pnl $ -1284.02 |  11666 fills  1018269 sh |  -0.126 c/sh | capture +0.461 markout1s -0.501 5s -0.571 ticks | mean|pos| 213
+
+L=   0.1ms naive (always quote)     pnl $  +222.91 |  35508 fills  2738813 sh |  +0.008 c/sh | capture +0.474 markout1s -0.407 5s -0.460 ticks | mean|pos| 211
+L=   0.1ms alpha pull               pnl $ +1315.12 |   9837 fills   797901 sh |  +0.165 c/sh | capture +0.500 markout1s -0.263 5s -0.296 ticks | mean|pos| 217
+L=   0.1ms shuffled-alpha control   pnl $  -997.93 |   9766 fills   858264 sh |  -0.116 c/sh | capture +0.467 markout1s -0.477 5s -0.538 ticks | mean|pos| 213
+
+L=     1ms naive (always quote)     pnl $   +81.67 |  33577 fills  2601152 sh |  +0.003 c/sh | capture +0.447 markout1s -0.387 5s -0.443 ticks | mean|pos| 207
+L=     1ms alpha pull               pnl $ +1049.60 |  10293 fills   834571 sh |  +0.126 c/sh | capture +0.485 markout1s -0.296 5s -0.334 ticks | mean|pos| 207
+L=     1ms shuffled-alpha control   pnl $ -1128.68 |  10174 fills   884171 sh |  -0.128 c/sh | capture +0.435 markout1s -0.475 5s -0.544 ticks | mean|pos| 208
+
+L=     5ms naive (always quote)     pnl $   -45.79 |  29645 fills  2282164 sh |  -0.002 c/sh | capture +0.417 markout1s -0.362 5s -0.417 ticks | mean|pos| 204
+L=     5ms alpha pull               pnl $  +646.71 |  10522 fills   841119 sh |  +0.077 c/sh | capture +0.458 markout1s -0.347 5s -0.389 ticks | mean|pos| 203
+L=     5ms shuffled-alpha control   pnl $ -1047.42 |  10070 fills   853064 sh |  -0.123 c/sh | capture +0.393 markout1s -0.469 5s -0.532 ticks | mean|pos| 205
+
+L=    20ms naive (always quote)     pnl $  +242.53 |  25459 fills  1949252 sh |  +0.012 c/sh | capture +0.409 markout1s -0.342 5s -0.400 ticks | mean|pos| 202
+L=    20ms alpha pull               pnl $  +294.50 |   9761 fills   771291 sh |  +0.038 c/sh | capture +0.436 markout1s -0.353 5s -0.404 ticks | mean|pos| 206
+L=    20ms shuffled-alpha control   pnl $  -990.31 |   8862 fills   736526 sh |  -0.134 c/sh | capture +0.370 markout1s -0.440 5s -0.497 ticks | mean|pos| 201
+
+L=    50ms naive (always quote)     pnl $   +38.14 |  22614 fills  1729392 sh |  +0.002 c/sh | capture +0.404 markout1s -0.340 5s -0.398 ticks | mean|pos| 203
+L=    50ms alpha pull               pnl $   -31.02 |   9094 fills   717898 sh |  -0.004 c/sh | capture +0.426 markout1s -0.369 5s -0.425 ticks | mean|pos| 203
+L=    50ms shuffled-alpha control   pnl $  -895.26 |   7563 fills   622924 sh |  -0.144 c/sh | capture +0.370 markout1s -0.453 5s -0.507 ticks | mean|pos| 198
+
+L=   100ms naive (always quote)     pnl $   -35.94 |  19609 fills  1498289 sh |  -0.002 c/sh | capture +0.401 markout1s -0.341 5s -0.405 ticks | mean|pos| 206
+L=   100ms alpha pull               pnl $  -180.42 |   8215 fills   642530 sh |  -0.028 c/sh | capture +0.423 markout1s -0.373 5s -0.434 ticks | mean|pos| 197
+L=   100ms shuffled-alpha control   pnl $  -852.12 |   6084 fills   497479 sh |  -0.171 c/sh | capture +0.375 markout1s -0.462 5s -0.526 ticks | mean|pos| 204
+
+L=   250ms naive (always quote)     pnl $  -363.98 |  14802 fills  1123568 sh |  -0.032 c/sh | capture +0.420 markout1s -0.355 5s -0.430 ticks | mean|pos| 209
+L=   250ms alpha pull               pnl $  -117.67 |   6890 fills   534110 sh |  -0.022 c/sh | capture +0.426 markout1s -0.388 5s -0.462 ticks | mean|pos| 199
+L=   250ms shuffled-alpha control   pnl $  -867.05 |   4292 fills   345772 sh |  -0.251 c/sh | capture +0.403 markout1s -0.471 5s -0.563 ticks | mean|pos| 203
+
+L=  1000ms naive (always quote)     pnl $  -553.34 |   7318 fills   553435 sh |  -0.100 c/sh | capture +0.437 markout1s -0.360 5s -0.470 ticks | mean|pos| 200
+L=  1000ms alpha pull               pnl $  -413.07 |   4014 fills   307588 sh |  -0.134 c/sh | capture +0.439 markout1s -0.430 5s -0.527 ticks | mean|pos| 186
+L=  1000ms shuffled-alpha control   pnl $  -514.65 |   1849 fills   144023 sh |  -0.357 c/sh | capture +0.431 markout1s -0.483 5s -0.633 ticks | mean|pos| 214
+
+## 3. Does the alpha add value? paired block bootstrap over 30-minute PnL blocks (prop-rebate fees)
+L=0ms alpha-pull minus naive (always quote)    : mean block pnl diff $+33.05, bootstrap P(diff<=0) = 0.021  (n_blocks=26)
+L=0ms alpha-pull minus shuffled-alpha control  : mean block pnl diff $+104.60, bootstrap P(diff<=0) = 0.000  (n_blocks=26)
+L=1ms alpha-pull minus naive (always quote)    : mean block pnl diff $+37.23, bootstrap P(diff<=0) = 0.004  (n_blocks=26)
+L=1ms alpha-pull minus shuffled-alpha control  : mean block pnl diff $+83.81, bootstrap P(diff<=0) = 0.000  (n_blocks=26)
+L=20ms alpha-pull minus naive (always quote)    : mean block pnl diff $+2.02, bootstrap P(diff<=0) = 0.471  (n_blocks=26)
+L=20ms alpha-pull minus shuffled-alpha control  : mean block pnl diff $+49.49, bootstrap P(diff<=0) = 0.000  (n_blocks=26)
+
+## 4. Fee sensitivity (test days, alpha pull, L=1ms)
+free               pnl $  +807.52 |  10293 fills   834571 sh |  +0.097 c/sh | capture +0.485 markout1s -0.296 5s -0.334 ticks | mean|pos| 207
+prop_rebate_tier   pnl $ +1049.60 |  10293 fills   834571 sh |  +0.126 c/sh | capture +0.485 markout1s -0.296 5s -0.334 ticks | mean|pos| 207
+ibkr_pro_tiered    pnl $ -3306.21 |  10293 fills   834571 sh |  -0.396 c/sh | capture +0.485 markout1s -0.296 5s -0.334 ticks | mean|pos| 207
+
+## 5. Queue-model sensitivity (test days, alpha pull, prop-rebate, L=1ms)
+queue=prob pessimism=0.5: pnl $ +2318.74 |  14374 fills  1128764 sh |  +0.205 c/sh | capture +0.493 markout1s -0.255 5s -0.281 ticks | mean|pos| 209
+queue=prob pessimism=1.0: pnl $ +1049.60 |  10293 fills   834571 sh |  +0.126 c/sh | capture +0.485 markout1s -0.296 5s -0.334 ticks | mean|pos| 207
+queue=prob pessimism=2.0: pnl $  +639.76 |   7221 fills   603410 sh |  +0.106 c/sh | capture +0.471 markout1s -0.315 5s -0.343 ticks | mean|pos| 211
+queue=none pessimism=1.0: pnl $  +238.35 |   6639 fills   613481 sh |  +0.039 c/sh | capture +0.473 markout1s -0.361 5s -0.391 ticks | mean|pos| 205
+queue=none pessimism=2.0: pnl $   -20.33 |   4142 fills   389470 sh |  -0.005 c/sh | capture +0.449 markout1s -0.376 5s -0.407 ticks | mean|pos| 198
