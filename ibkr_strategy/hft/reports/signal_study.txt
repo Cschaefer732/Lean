@@ -1,0 +1,56 @@
+
+=== SPY  train 20131007..20131009  test 20131010..20131011  horizon 1s ===
+grid samples/day ~227,672; median spread 1 tick(s)
+(imbalance IC if sampled in EVENT time instead of a 100ms grid: +0.295 -> inflated by quote bursts)
+univariate OOS rank IC with forward mid move:
+  imb          +0.185
+  flow_100ms   +0.071
+  flow_1s      +0.042
+  flow_10s     +0.016
+GBM OOS: rank IC +0.196  R2 +0.0221
+mean realised 1s mid move when model is in its top 5% / bottom 5% / top 1%: +0.172 / -0.161 / +0.222 ticks
+for scale: a taker pays at least HALF the spread (0.52 tick) on entry plus half on exit, and ~0.65 tick/share of commissions+exchange fees each way at IBKR tiered rates
+top features: [('ret_10s', np.int32(483)), ('imb', np.int32(402)), ('flow_100ms', np.int32(366)), ('asz_chg_1s', np.int32(319)), ('flow_10s', np.int32(314))]
+imbalance IC by horizon: {'100ms': np.float64(0.075), '500ms': np.float64(0.152), '1s': np.float64(0.185), '5s': np.float64(0.194), '30s': np.float64(0.114)}
+
+=== BAC  train 20131007..20131009  test 20131010..20131011  horizon 1s ===
+grid samples/day ~227,427; median spread 1 tick(s)
+(imbalance IC if sampled in EVENT time instead of a 100ms grid: +0.281 -> inflated by quote bursts)
+univariate OOS rank IC with forward mid move:
+  flow_1s      +0.060
+  imb          +0.057
+  flow_100ms   +0.048
+  flow_10s     +0.044
+GBM OOS: rank IC +0.061  R2 -0.0196
+mean realised 1s mid move when model is in its top 5% / bottom 5% / top 1%: +0.010 / -0.011 / +0.032 ticks
+for scale: a taker pays at least HALF the spread (0.51 tick) on entry plus half on exit, and ~0.65 tick/share of commissions+exchange fees each way at IBKR tiered rates
+top features: [('flow_1s', np.int32(505)), ('asz_chg_1s', np.int32(455)), ('bsz_chg_1s', np.int32(441)), ('depth', np.int32(435)), ('imb', np.int32(434))]
+imbalance IC by horizon: {'100ms': np.float64(0.015), '500ms': np.float64(0.037), '1s': np.float64(0.057), '5s': np.float64(0.13), '30s': np.float64(0.184)}
+
+=== AIG  train 20131007..20131009  test 20131010..20131011  horizon 1s ===
+grid samples/day ~227,675; median spread 1 tick(s)
+(imbalance IC if sampled in EVENT time instead of a 100ms grid: +0.326 -> inflated by quote bursts)
+univariate OOS rank IC with forward mid move:
+  imb          +0.140
+  flow_100ms   +0.058
+  flow_1s      +0.039
+  flow_10s     +0.020
+GBM OOS: rank IC +0.153  R2 +0.0123
+mean realised 1s mid move when model is in its top 5% / bottom 5% / top 1%: +0.095 / -0.082 / +0.096 ticks
+for scale: a taker pays at least HALF the spread (0.54 tick) on entry plus half on exit, and ~0.65 tick/share of commissions+exchange fees each way at IBKR tiered rates
+top features: [('imb', np.int32(479)), ('ret_10s', np.int32(413)), ('flow_10s', np.int32(412)), ('asz_chg_1s', np.int32(322)), ('bsz_chg_1s', np.int32(314))]
+imbalance IC by horizon: {'100ms': np.float64(0.047), '500ms': np.float64(0.101), '1s': np.float64(0.14), '5s': np.float64(0.221), '30s': np.float64(0.15)}
+
+=== IBM  train 20131007..20131009  test 20131010..20131011  horizon 1s ===
+grid samples/day ~227,643; median spread 3 tick(s)
+(imbalance IC if sampled in EVENT time instead of a 100ms grid: +0.203 -> inflated by quote bursts)
+univariate OOS rank IC with forward mid move:
+  flow_1s      +0.089
+  imb          +0.079
+  flow_100ms   +0.076
+  flow_10s     +0.070
+GBM OOS: rank IC +0.112  R2 +0.0028
+mean realised 1s mid move when model is in its top 5% / bottom 5% / top 1%: +0.072 / -0.054 / +0.077 ticks
+for scale: a taker pays at least HALF the spread (2.36 tick) on entry plus half on exit, and ~0.65 tick/share of commissions+exchange fees each way at IBKR tiered rates
+top features: [('ret_10s', np.int32(575)), ('flow_10s', np.int32(438)), ('flow_1s', np.int32(412)), ('ret_1s', np.int32(340)), ('flow_100ms', np.int32(301))]
+imbalance IC by horizon: {'100ms': np.float64(0.017), '500ms': np.float64(0.052), '1s': np.float64(0.079), '5s': np.float64(0.138), '30s': np.float64(0.087)}
